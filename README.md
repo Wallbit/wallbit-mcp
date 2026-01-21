@@ -356,10 +356,11 @@ Crea una orden de compra o venta de un asset.
 | Nombre | Tipo | Requerido | Descripción |
 |--------|------|-----------|-------------|
 | `symbol` | string | Sí | Símbolo del asset |
-| `direction` | string | Sí | Dirección: `buy` o `sell` |
-| `orderType` | string | Sí | Tipo de orden: `market` o `limit` |
+| `direction` | string | Sí | Dirección: `BUY` o `SELL` |
+| `order_type` | string | Sí | Tipo de orden: `MARKET` o `LIMIT` |
 | `amount` | number | No | Monto en USD |
 | `shares` | number | No | Cantidad de acciones |
+| `currency` | string | Si | Moneda con la que se opera `USD`|
 
 **Ejemplo de uso en chat:**
 > "Compra $100 de Apple"

@@ -2,7 +2,7 @@ import { z } from "zod";
 import { api } from "../lib/api";
 
 export const schema = {
-  symbol: z.string().describe("Símbolo del asset (ej: AAPL, BTC)"),
+  symbol: z.string().describe("Símbolo del asset (ej: AAPL, TSLA)"),
 };
 
 export const metadata = {
