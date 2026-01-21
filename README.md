@@ -16,7 +16,7 @@ Soporta dos modos de ejecución:
 
 ```bash
 # Clonar el repositorio
-git clone <tu-repo-url>
+git clone https://github.com/Wallbit/wallbit-mcp
 cd wallbit-mcp
 
 # Instalar dependencias
@@ -106,7 +106,7 @@ curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
 sudo apt-get install -y nodejs
 
 # Clonar el repositorio
-git clone <tu-repo-url>
+git clone https://github.com/Wallbit/wallbit-mcp
 cd wallbit-mcp
 
 # Instalar y compilar
