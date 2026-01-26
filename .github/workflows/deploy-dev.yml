@@ -1,0 +1,27 @@
+name: Deploy to Dev
+
+on:
+  push:
+    branches:
+      - develop
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  deploy:
+    uses: Wallbit/pipelines/.github/workflows/deploy-ecs-dev.yml@main
+    with:
+      ecr_repository: "wallbit/wallbit-mcp"
+      gitops_service_path: "wallbit-mcp"
+      task_family: "dev-wallbit-mcp-task"
+      service_name: "dev-wallbit-mcp-service"
+      container_port: 8080
+      dockerfile: "Dockerfile"
+      host_header: "mcp.dev.wallbit.io"
+      health_check_path: "/health"
+    secrets:
+      gitops_pat: ${{ secrets.GITOPS_PAT }}
+      aws_role_arn: ${{ secrets.AWS_DEV_ROLE_ARN }}
