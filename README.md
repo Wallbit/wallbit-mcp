@@ -8,7 +8,7 @@ Soporta dos modos de ejecución:
 
 ## Requisitos
 
-- Node.js 18+
+- Node.js 20+
 - npm o yarn
 - API Key de Wallbit
 
