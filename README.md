@@ -3,6 +3,7 @@
 Servidor MCP (Model Context Protocol) para interactuar con la API de Wallbit desde asistentes de IA como Claude y Cursor.
 
 Soporta dos modos de ejecución:
+
 - **Local (stdio)**: Para uso directo con Cursor/Claude Desktop
 - **Servidor HTTP (SSE)**: Para deployment en EC2 u otros servidores
 
@@ -28,11 +29,35 @@ npm run build
 
 ## Variables de Entorno
 
-| Variable | Descripción | Requerido |
-|----------|-------------|-----------|
-| `BASE_URL` | URL base de la API de Wallbit | Sí |
-| `API_KEY` | Tu API Key de Wallbit | Sí |
-| `PORT` | Puerto del servidor HTTP (default: 8080) | No |
+| Variable   | Descripción                                                 | Requerido |
+| ---------- | ----------------------------------------------------------- | --------- |
+| `BASE_URL` | URL base de la API de Wallbit                               | Sí        |
+| `API_KEY`  | API Key de Wallbit (fallback cuando no se envía por header) | No\*      |
+| `PORT`     | Puerto del servidor HTTP (default: 8080)                    | No        |
+
+\* En modo servidor HTTP la API key puede enviarse por header (ver más abajo). En modo stdio (local) es obligatoria por `env`.
+
+## API Key dinámica (modo servidor HTTP)
+
+Cuando el MCP se ejecuta como servidor HTTP, puedes enviar la API key de Wallbit **por petición** en el header, así cada cliente puede usar su propia key sin tocar variables de entorno:
+
+- **Header:** `X-API-Key` (o `x-api-key`)
+- **Valor:** Tu API Key de Wallbit
+
+Si no envías este header, el servidor usará la variable de entorno `API_KEY`. Ejemplo de configuración en Cursor contra un MCP remoto:
+
+```json
+{
+  "mcpServers": {
+    "wallbit": {
+      "url": "https://mcp.wallbit.com/mcp",
+      "headers": {
+        "X-API-Key": "your-wallbit-api-key"
+      }
+    }
+  }
+}
+```
 
 ## Modo Local (Cursor/Claude Desktop)
 
@@ -131,6 +156,7 @@ API_KEY=
 ```
 
 Generar un token seguro:
+
 ```bash
 openssl rand -hex 32
 ```
@@ -156,11 +182,11 @@ pm2 save
 
 Abrir los siguientes puertos inbound:
 
-| Puerto | Protocolo | Fuente | Descripción |
-|--------|-----------|--------|-------------|
-| 22 | TCP | Tu IP | SSH |
-| 8080 | TCP | 0.0.0.0/0 | MCP Server (o usa Nginx) |
-| 443 | TCP | 0.0.0.0/0 | HTTPS (si usas Nginx) |
+| Puerto | Protocolo | Fuente    | Descripción              |
+| ------ | --------- | --------- | ------------------------ |
+| 22     | TCP       | Tu IP     | SSH                      |
+| 8080   | TCP       | 0.0.0.0/0 | MCP Server (o usa Nginx) |
+| 443    | TCP       | 0.0.0.0/0 | HTTPS (si usas Nginx)    |
 
 ### 5. Configurar Nginx con HTTPS (recomendado)
 
@@ -216,12 +242,14 @@ Edita `~/.cursor/mcp.json`:
     "wallbit": {
       "url": "https://tu-dominio.com/sse",
       "headers": {
-        "Authorization": "Bearer wlb_mcp_YourToken123456789"
+        "X-API-Key": "your-wallbit-api-key"
       }
     }
   }
 }
 ```
+
+Opcional: si el servidor tiene `API_KEY` en el entorno, no hace falta enviar `X-API-Key` en los headers.
 
 Sin HTTPS (solo para testing):
 
@@ -231,7 +259,7 @@ Sin HTTPS (solo para testing):
     "wallbit": {
       "url": "http://your-public-ip:8080/sse",
       "headers": {
-        "Authorization": "Bearer wlb_mcp_YourToken123456789"
+        "X-API-Key": "tu-wallbit-api-key"
       }
     }
   }
@@ -276,15 +304,15 @@ Obtiene el balance de la cuenta corriente del usuario.
 **Parámetros:** Ninguno
 
 **Ejemplo de respuesta:**
+
 ```json
 {
-  "data": [
-    { "currency": "USD", "balance": "7469.89" }
-  ]
+  "data": [{ "currency": "USD", "balance": "7469.89" }]
 }
 ```
 
 **Ejemplo de uso en chat:**
+
 > "Muéstrame mi balance en Wallbit"
 
 ---
@@ -296,6 +324,7 @@ Obtiene el balance de la cuenta de inversiones (acciones).
 **Parámetros:** Ninguno
 
 **Ejemplo de respuesta:**
+
 ```json
 {
   "data": [
@@ -307,6 +336,7 @@ Obtiene el balance de la cuenta de inversiones (acciones).
 ```
 
 **Ejemplo de uso en chat:**
+
 > "¿Qué acciones tengo en mi portafolio?"
 
 ---
@@ -317,13 +347,14 @@ Lista las transacciones del usuario con soporte para paginación y filtros.
 
 **Parámetros:**
 
-| Nombre | Tipo | Requerido | Descripción |
-|--------|------|-----------|-------------|
-| `page` | number | No | Número de página (default: 1) |
-| `limit` | number | No | Resultados por página (default: 10) |
-| `status` | string | No | Filtrar por estado |
+| Nombre   | Tipo   | Requerido | Descripción                         |
+| -------- | ------ | --------- | ----------------------------------- |
+| `page`   | number | No        | Número de página (default: 1)       |
+| `limit`  | number | No        | Resultados por página (default: 10) |
+| `status` | string | No        | Filtrar por estado                  |
 
 **Ejemplo de uso en chat:**
+
 > "Muéstrame mis últimas 5 transacciones"
 
 > "¿Cuáles son mis transacciones pendientes?"
@@ -336,11 +367,12 @@ Obtiene información detallada de un asset por su símbolo.
 
 **Parámetros:**
 
-| Nombre | Tipo | Requerido | Descripción |
-|--------|------|-----------|-------------|
-| `symbol` | string | Sí | Símbolo del asset (ej: AAPL, TSLA, BTC) |
+| Nombre   | Tipo   | Requerido | Descripción                             |
+| -------- | ------ | --------- | --------------------------------------- |
+| `symbol` | string | Sí        | Símbolo del asset (ej: AAPL, TSLA, BTC) |
 
 **Ejemplo de uso en chat:**
+
 > "¿Cuál es el precio actual de AAPL?"
 
 > "Dame información sobre Tesla"
@@ -353,16 +385,17 @@ Crea una orden de compra o venta de un asset.
 
 **Parámetros:**
 
-| Nombre | Tipo | Requerido | Descripción |
-|--------|------|-----------|-------------|
-| `symbol` | string | Sí | Símbolo del asset |
-| `direction` | string | Sí | Dirección: `BUY` o `SELL` |
-| `order_type` | string | Sí | Tipo de orden: `MARKET` o `LIMIT` |
-| `amount` | number | No | Monto en USD |
-| `shares` | number | No | Cantidad de acciones |
-| `currency` | string | Si | Moneda con la que se opera `USD`|
+| Nombre       | Tipo   | Requerido | Descripción                       |
+| ------------ | ------ | --------- | --------------------------------- |
+| `symbol`     | string | Sí        | Símbolo del asset                 |
+| `direction`  | string | Sí        | Dirección: `BUY` o `SELL`         |
+| `order_type` | string | Sí        | Tipo de orden: `MARKET` o `LIMIT` |
+| `amount`     | number | No        | Monto en USD                      |
+| `shares`     | number | No        | Cantidad de acciones              |
+| `currency`   | string | Si        | Moneda con la que se opera `USD`  |
 
 **Ejemplo de uso en chat:**
+
 > "Compra $100 de Apple"
 
 > "Vende 0.5 acciones de Tesla"
@@ -374,6 +407,7 @@ Crea una orden de compra o venta de un asset.
 ## Ejemplos de Conversación
 
 ### Consultar balance completo
+
 ```
 Usuario: ¿Cuánto dinero tengo en Wallbit?
 
@@ -384,6 +418,7 @@ Asistente: Tienes:
 ```
 
 ### Realizar una compra
+
 ```
 Usuario: Quiero invertir $500 en Apple
 
@@ -392,6 +427,7 @@ Asistente: Voy a crear una orden de compra de $500 en AAPL...
 ```
 
 ### Consultar un asset
+
 ```
 Usuario: ¿Cómo está Tesla hoy?
 
@@ -445,14 +481,17 @@ npm start
 ## Troubleshooting
 
 ### El servidor no responde
+
 - Verifica que las variables de entorno estén configuradas
 - Revisa los logs: `pm2 logs wallbit-mcp`
 
 ### Error de autenticación
+
 - Verifica que el token en Cursor coincida con `API_KEY`
 - El header debe ser `Authorization: Bearer <token>`
 
 ### Timeout en SSE
+
 - Asegúrate de que Nginx tenga `proxy_buffering off`
 - Verifica que el Security Group permita el tráfico
 
