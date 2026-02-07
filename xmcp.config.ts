@@ -8,6 +8,7 @@ const config: XmcpConfig = {
   version: "1.0.0",
   http: {
     port: Number(process.env.PORT) || 3000,
+    host: "0.0.0.0",  
     endpoint: "/mcp",
     cors: { origin: "*" },
   },

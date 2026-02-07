@@ -1,0 +1,158 @@
+name: Deploy to ECS Dev
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  id-token: write
+
+env:
+  AWS_REGION: us-east-2
+  ENVIRONMENT: dev
+  ECR_REGISTRY: "207004463809.dkr.ecr.us-east-2.amazonaws.com"
+  GITOPS_REPO: "Wallbit/gitops"
+
+jobs:
+  # JOB 1: CONSTRUIR LA IMAGEN
+  build-and-push:
+    name: Build & Push Docker Image
+    runs-on: ubuntu-latest
+    outputs:
+      image-uri: ${{ steps.meta.outputs.image }}
+      version: ${{ steps.meta.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.DEV_AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Generate Version Tag
+        id: meta
+        run: |
+          COMMIT_HASH=$(git rev-parse --short HEAD)
+          VERSION="dev-${COMMIT_HASH}"
+          
+          # VALOR FIJO: wallbit/wallbit-mcp
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "image=${{ env.ECR_REGISTRY }}/wallbit/wallbit-mcp:$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: |
+            ${{ env.ECR_REGISTRY }}/wallbit/wallbit-mcp:${{ steps.meta.outputs.version }}
+            ${{ env.ECR_REGISTRY }}/wallbit/wallbit-mcp:latest
+          cache-from: type=registry,ref=${{ env.ECR_REGISTRY }}/wallbit/wallbit-mcp:buildcache
+          cache-to: type=registry,ref=${{ env.ECR_REGISTRY }}/wallbit/wallbit-mcp:buildcache,mode=max
+
+  # JOB 2: ACTUALIZAR GITOPS Y DESPLEGAR SERVICIO
+  deploy:
+    name: Update GitOps & Deploy Service
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout App Repository
+        uses: actions/checkout@v4
+
+      - name: Checkout GitOps Repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.GITOPS_REPO }}
+          path: gitops-repo
+          token: ${{ secrets.GITOPS_PAT }}
+          fetch-depth: 0
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.DEV_AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      # Clonamos pipelines explícitamente usando el PAT para poder leer los scripts
+      - name: Checkout Pipelines Repository
+        uses: actions/checkout@v4
+        with:
+          repository: Wallbit/pipelines
+          path: pipelines-repo
+          token: ${{ secrets.GITOPS_PAT }}
+
+      - name: Configure AWS credentials (again for scripts)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.DEV_AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # Actualizar GitOps con nueva imagen
+      - name: 📝 Update GitOps Container Definitions
+        id: update-gitops
+        run: |
+          # VALOR FIJO: wallbit-mcp
+          GITOPS_PATH="gitops-repo/environments/${{ env.ENVIRONMENT }}/${{ env.AWS_REGION }}/wallbit-mcp"
+          IMAGE_URI="${{ needs.build-and-push.outputs.image-uri }}"
+          
+          chmod +x pipelines-repo/scripts/update-gitops.sh
+          pipelines-repo/scripts/update-gitops.sh \
+            --environment "${{ env.ENVIRONMENT }}" \
+            --aws-region "${{ env.AWS_REGION }}" \
+            --image "$IMAGE_URI" \
+            --version "${{ needs.build-and-push.outputs.version }}" \
+            --gitops-path "$GITOPS_PATH"
+          
+          echo "gitops_path=$GITOPS_PATH" >> $GITHUB_OUTPUT
+
+      - name: 💾 Commit and Push GitOps Changes
+        working-directory: gitops-repo
+        run: |
+          # VALOR FIJO: wallbit-mcp
+          GITOPS_REL_PATH="environments/${{ env.ENVIRONMENT }}/${{ env.AWS_REGION }}/wallbit-mcp"
+          
+          git add "$GITOPS_REL_PATH/*.json"
+          
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "chore: update wallbit-mcp container definitions for ${{ env.ENVIRONMENT }} - ${{ needs.build-and-push.outputs.version }}"
+            git push origin HEAD
+            echo "✅ GitOps changes committed and pushed"
+          fi
+
+      # Despliegue del servicio
+      - name: 🚀 Deploy Service
+        run: |
+          chmod +x pipelines-repo/scripts/deploy-ecs.sh
+          
+          # VALORES FIJOS APLICADOS
+          pipelines-repo/scripts/deploy-ecs.sh \
+            --environment "${{ env.ENVIRONMENT }}" \
+            --task-family "dev-wallbit-mcp-task" \
+            --service-name "dev-wallbit-mcp-service" \
+            --image "${{ needs.build-and-push.outputs.image-uri }}" \
+            --version "${{ needs.build-and-push.outputs.version }}" \
+            --gitops-path "${{ steps.update-gitops.outputs.gitops_path }}" \
+            --host-header "mcp.dev.wallbit.io" \
+            --public-ip "ENABLED" \
+            --container-port "8080" \
+            --health-check-path "/health"
