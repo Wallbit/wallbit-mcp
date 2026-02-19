@@ -1,6 +1,8 @@
 #!/bin/sh
 set -eu
 
+export PORT="${PORT:-8080}"
+
 stage="${APP_STAGE:-${NODE_ENV:-production}}"
 
 case "$stage" in

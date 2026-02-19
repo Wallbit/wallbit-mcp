@@ -6,6 +6,8 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 COPY . .
+# Ensure build-time config resolves MCP HTTP port to 8080.
+ENV PORT=8080
 RUN npm run build
 
 FROM node:20-alpine AS runtime
