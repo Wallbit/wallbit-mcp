@@ -4,8 +4,8 @@
   "scripts": {
     "dev": "xmcp dev",
     "build": "xmcp build",
-    "start": "xmcp start",
-    "start:stdio": "xmcp start --stdio"
+    "start": "node dist/http.js",
+    "start:stdio": "node dist/stdio.js"
   },
   "dependencies": {
     "axios": "^1.6.0",
