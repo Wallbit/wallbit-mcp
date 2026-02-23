@@ -14,7 +14,15 @@ function getWallbitApiKey(): string {
     const requestHeaders = headers();
     const key =
       requestHeaders[WALLBIT_API_KEY_HEADER] ??
-      requestHeaders["X-API-Key"];
+      requestHeaders["X-API-Key"] ??
+      (() => {
+        const authHeader = requestHeaders["Authorization"] || requestHeaders["authorization"];
+        if (authHeader && typeof authHeader === "string") {
+          const match = authHeader.match(/^Bearer\s+(.+)$/i);
+          return match ? match[1] : undefined;
+        }
+        return undefined;
+      })();
     if (key) {
       return Array.isArray(key) ? key[0] : key;
     }
