@@ -6,6 +6,7 @@ const WALLBIT_API_KEY_HEADER = "x-api-key";
 /**
  * Obtiene la API key de Wallbit: primero desde el header de la petición HTTP (modo servidor),
  * y si no está disponible, desde la variable de entorno API_KEY (modo stdio o fallback).
+ * Acepta X-API-Key, x-api-key o Authorization: Bearer <token>.
  * @returns La API key a usar para las llamadas a la API de Wallbit.
  */
 function getWallbitApiKey(): string {
@@ -16,13 +17,14 @@ function getWallbitApiKey(): string {
       requestHeaders[WALLBIT_API_KEY_HEADER] ??
       requestHeaders["X-API-Key"] ??
       (() => {
-        const authHeader = requestHeaders["Authorization"] || requestHeaders["authorization"];
-        if (authHeader && typeof authHeader === "string") {
-          const match = authHeader.match(/^Bearer\s+(.+)$/i);
+        const raw = requestHeaders["Authorization"] || requestHeaders["authorization"];
+        const value = Array.isArray(raw) ? raw[0] : raw;
+        if (value && typeof value === "string") {
+          const match = value.match(/^Bearer\s+(.+)$/i);
           return match ? match[1] : undefined;
         }
         return undefined;
-      })();;
+      })();
     if (key) {
       return Array.isArray(key) ? key[0] : key;
     }
