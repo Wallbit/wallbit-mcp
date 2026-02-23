@@ -22,7 +22,7 @@ function getWallbitApiKey(): string {
           return match ? match[1] : undefined;
         }
         return undefined;
-      })();
+      })();;
     if (key) {
       return Array.isArray(key) ? key[0] : key;
     }
